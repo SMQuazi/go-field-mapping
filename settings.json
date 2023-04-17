@@ -1,0 +1,8 @@
+{
+    "section1" : {
+        "fields": {
+            "creator": ["author", "creator", "maker"],
+            "title": ["title", "name"]
+        }
+    }
+}
