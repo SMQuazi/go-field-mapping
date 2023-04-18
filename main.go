@@ -17,7 +17,7 @@ func handleError(err error) {
 	}
 }
 
-func GetSettings() Settings {
+func getSettings() Settings {
 	data, err := os.ReadFile("settings.json")
 	handleError(err)
 	var settings Settings
@@ -25,7 +25,7 @@ func GetSettings() Settings {
 	return settings
 }
 
-func GetTitles(excelPath string) []string {
+func getTitles(excelPath string) []string {
 	f, err := excelize.OpenFile(excelPath)
 	handleError(err)
 	rows, err := f.GetRows("Sheet1")
@@ -34,16 +34,25 @@ func GetTitles(excelPath string) []string {
 	return titles
 }
 
+func handlePing(c *gin.Context) {
+	titles := getTitles("spreadsheet.xlsx")
+	fmt.Print(titles)
+
+	c.JSON(http.StatusOK,
+		gin.H{
+			"message": "ok",
+		})
+}
+
+func handleMatch(c *gin.Context) {
+	var fieldHeaders matchApiPostData
+	err := c.Bind(&fieldHeaders)
+	handleError(err)
+}
+
 func main() {
 	r := gin.Default()
-	titles := GetTitles("spreadsheet.xlsx")
-	fmt.Print(titles)
-	r.GET("/ping", func(c *gin.Context) {
-
-		c.JSON(http.StatusOK,
-			gin.H{
-				"message": "pong",
-			})
-	})
+	r.GET("/ping", handlePing)
+	r.POST("/match", handleMatch)
 	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
