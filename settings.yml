@@ -1,0 +1,32 @@
+category:
+  fields:
+    - name: 'author'
+      type: 'str'
+      alternatives:
+        - label: 'contributor'
+          refinement: 'contributor'
+        - label: 'creator'
+          refinement: 'creator'
+        - label: 'artist'
+          refinement: 'contributor'
+    - name: 'description'
+      type: 'str'
+      alternatives:
+        - label: 'description'
+        - label: 'notes'
+    - name: 'filename'
+      type: 'str'
+      alternatives:
+        - label: 'filenames'
+        - label: 'file names'
+        - label: 'file name'
+        - label: 'filename'
+        - label: 'media'
+    - name: 'category'
+      type: 'str'
+      alternatives:
+        - label: 'genre'
+    - name: 'title'
+      type: 'str'
+      alternatives:
+        - label: 'title'
