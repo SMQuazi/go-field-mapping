@@ -34,7 +34,8 @@ func handleMatch(c *gin.Context) {
 
 	settings, err := getSettings()
 	handleError(err, c)
-	fmt.Print(settings)
+
+	c.JSON(http.StatusOK, settings)
 }
 
 func main() {
