@@ -1,20 +1,24 @@
 package main
 
-import "github.com/xuri/excelize/v2"
+import "github.com/lithammer/fuzzysearch/fuzzy"
 
-type matchApiPostData struct {
-	FieldHeaders []string `json:"fieldHeaders"`
+type MatchSuggestions struct {
+	originalTitle  string
+	suggestedField Field
+	score          int
 }
 
-func getTitles(excelPath string) ([]string, error) {
-	xlData, err := excelize.OpenFile(excelPath)
-	if err != nil {
-		return nil, err
+func findMatches(titles []string) (suggestions []MatchSuggestions) {
+	settings := getSettings()
+	fields := settings.Category.Fields[0]
+	for _, title := range titles {
+		score := fuzzy.RankMatch(title, fields.Name)
+		currentField := fields
+		suggestions = append(suggestions, MatchSuggestions{
+			originalTitle:  title,
+			suggestedField: currentField,
+			score:          score,
+		})
 	}
-	rows, err := xlData.GetRows("Sheet1")
-	if err != nil {
-		return nil, err
-	}
-	titles := rows[0]
-	return titles, nil
+	return
 }
