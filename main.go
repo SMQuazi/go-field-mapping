@@ -42,18 +42,13 @@ func handlePing(c *gin.Context) {
 
 func handleMatch(c *gin.Context) {
 	var fieldHeaders matchApiPostData
-	titles, titleErr := getTitles("spreadsheet.xlsx")
-
-	handleError(titleErr, c)
-	fmt.Print(titles)
+	titles, err := getTitles("spreadsheet.xlsx")
+	handleError(err, c)
+	suggestions := scoreMatch(titles)
 
 	bindError := c.Bind(&fieldHeaders)
 	handleError(bindError, c)
-
-	settings, err := getSettings()
-	handleError(err, c)
-
-	c.JSON(http.StatusOK, settings)
+	c.JSON(http.StatusOK, suggestions)
 }
 
 func main() {

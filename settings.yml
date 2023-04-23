@@ -2,7 +2,7 @@ category:
   fields:
     - name: 'author'
       type: 'str'
-      alternatives:
+      tags:
         - label: 'contributor'
           refinement: 'contributor'
         - label: 'creator'
@@ -11,12 +11,12 @@ category:
           refinement: 'contributor'
     - name: 'description'
       type: 'str'
-      alternatives:
+      tags:
         - label: 'description'
         - label: 'notes'
     - name: 'filename'
       type: 'str'
-      alternatives:
+      tags:
         - label: 'filenames'
         - label: 'file names'
         - label: 'file name'
@@ -24,9 +24,9 @@ category:
         - label: 'media'
     - name: 'category'
       type: 'str'
-      alternatives:
+      tags:
         - label: 'genre'
     - name: 'title'
       type: 'str'
-      alternatives:
+      tags:
         - label: 'title'

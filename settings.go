@@ -7,15 +7,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Alternatives struct {
+type Tag struct {
 	Label      string `yaml:"label"`
 	Refinement string `yaml:"refinement,omitempty"`
 }
 
 type Field struct {
-	Name         string         `yaml:"name"`
-	Type         string         `yaml:"type"`
-	Alternatives []Alternatives `yaml:"alternatives"`
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+	Tags []Tag  `yaml:"tags"`
 }
 
 type Category struct {
