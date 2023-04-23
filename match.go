@@ -1,24 +1,30 @@
 package main
 
-import "github.com/lithammer/fuzzysearch/fuzzy"
+import (
+	"strings"
+
+	"github.com/lithammer/fuzzysearch/fuzzy"
+)
 
 type MatchSuggestions struct {
-	originalTitle  string
 	suggestedField Field
+	originalTitle  string
 	score          int
 }
 
-func findMatches(titles []string) (suggestions []MatchSuggestions) {
+func scoreMatch(titles []string) (suggestions []MatchSuggestions) {
 	settings := getSettings()
-	fields := settings.Category.Fields[0]
-	for _, title := range titles {
-		score := fuzzy.RankMatch(title, fields.Name)
-		currentField := fields
-		suggestions = append(suggestions, MatchSuggestions{
-			originalTitle:  title,
-			suggestedField: currentField,
-			score:          score,
-		})
+	fields := settings.Category.Fields
+	fieldMap := make(map[string][]Field)
+	for _, field := range fields {
+		for _, title := range titles {
+			score := fuzzy.LevenshteinDistance(strings.ToLower(title), strings.ToLower(field.Name))
+			suggestions = append(suggestions, MatchSuggestions{
+				originalTitle:  title,
+				suggestedField: field,
+				score:          score,
+			})
+		}
 	}
 	return
 }
