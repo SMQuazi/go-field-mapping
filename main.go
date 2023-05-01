@@ -8,8 +8,13 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-type matchApiPostData struct {
-	FieldHeaders []string `json:"fieldHeaders"`
+type matchApiPostData []string
+
+func main() {
+	r := gin.Default()
+	r.GET("/ping", handlePing)
+	r.POST("/match", handleMatch)
+	r.Run()
 }
 
 func getTitles(excelPath string) ([]string, error) {
@@ -42,18 +47,9 @@ func handlePing(c *gin.Context) {
 
 func handleMatch(c *gin.Context) {
 	var fieldHeaders matchApiPostData
-	titles, err := getTitles("spreadsheet.xlsx")
-	handleError(err, c)
-	suggestions := scoreMatch(titles)
-
 	bindError := c.Bind(&fieldHeaders)
 	handleError(bindError, c)
-	c.JSON(http.StatusOK, suggestions)
-}
 
-func main() {
-	r := gin.Default()
-	r.GET("/ping", handlePing)
-	r.POST("/match", handleMatch)
-	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	suggestions := suggestFieldsForTitles(fieldHeaders)
+	c.JSON(http.StatusOK, suggestions)
 }

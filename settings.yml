@@ -3,6 +3,7 @@ category:
     - name: 'author'
       type: 'str'
       tags:
+        - label: 'author'
         - label: 'contributor'
           refinement: 'contributor'
         - label: 'creator'
@@ -17,14 +18,15 @@ category:
     - name: 'filename'
       type: 'str'
       tags:
+        - label: 'filename'
         - label: 'filenames'
         - label: 'file names'
         - label: 'file name'
-        - label: 'filename'
         - label: 'media'
     - name: 'category'
       type: 'str'
       tags:
+        - label: 'category'
         - label: 'genre'
     - name: 'title'
       type: 'str'

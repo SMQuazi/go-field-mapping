@@ -6,39 +6,77 @@ import (
 	"github.com/lithammer/fuzzysearch/fuzzy"
 )
 
-type ScoredTitle struct {
-	originalTitle string
-	score         int
+var MIN_SCORE_TO_MATCH = 2
+
+type SuggestedMatch struct {
+	OriginalTitle string   `json:"originalTitle"`
+	TargetField   Field    `json:"targetField"`
+	Refinement    string   `json:"refinement"`
+	Samples       []string `json:"samples"`
+	Score         int      `json:"score"`
 }
 
-func scoreTitles(titles []string) (suggestions map[*Field][]ScoredTitle) {
+type SuggestedField struct {
+	Name       string `json:"Name"`
+	Type       string `json:"Type"`
+	Label      string `json:"Label"`
+	Refinement string `json:"Refinement"`
+}
+
+type FieldsAllSuggestions map[SuggestedField][]SuggestedMatch
+type FieldsBestSuggestion map[SuggestedField]SuggestedMatch
+
+func (fbs FieldsBestSuggestion) Unmarshal(bytes []byte) error {
+	//TODO create custom marshaller to return JSON
+}
+
+func suggestFieldsForTitles(headers []string) FieldsBestSuggestion {
+	suggestions := make(FieldsAllSuggestions)
 	settings := getSettings()
 	fields := settings.Category.Fields
 	for _, field := range fields {
-		for _, title := range titles {
-			score := fuzzy.LevenshteinDistance(strings.ToLower(title), strings.ToLower(field.Name))
-
-			// if no records exist for the field in the suggestions, add it
-			_, ok := suggestions[&field]
-			if !ok {
-				suggestions[&field][0] = ScoredTitle{
-					originalTitle: title,
-					score:         score,
+		for _, tag := range field.Tags {
+			for _, header := range headers {
+				suggestedField := SuggestedField{
+					Name:       field.Name,
+					Type:       field.Type,
+					Label:      tag.Label,
+					Refinement: tag.Refinement,
 				}
-				continue
-			}
 
-			// if there is, loop through them, add
-			for index, scoredTitle := range suggestions[&field] {
-				if scoredTitle.score < score {
-					suggestions[&field][index] = ScoredTitle{
-						originalTitle: title,
-						score:         score,
-					}
+				var labelOrRefinement string
+				if len(tag.Refinement) > 0 {
+					labelOrRefinement = tag.Refinement
+				} else {
+					labelOrRefinement = tag.Label
+				}
+				score := fuzzy.LevenshteinDistance(
+					strings.TrimSpace(strings.ToLower(header)),
+					strings.TrimSpace(strings.ToLower(labelOrRefinement)),
+				)
+
+				// add if it's close enough
+				if score <= MIN_SCORE_TO_MATCH {
+					suggestions[suggestedField] = append(suggestions[suggestedField], SuggestedMatch{
+						OriginalTitle: header,
+						TargetField:   field,
+						Refinement:    tag.Refinement,
+						Samples:       []string{"test1", "test2", "test 3"},
+						Score:         score,
+					})
 				}
 			}
-
 		}
 	}
-	return
+	bestSuggestions := suggestions.pickBestMatch()
+	return bestSuggestions
+}
+
+func (allSuggestions FieldsAllSuggestions) pickBestMatch() FieldsBestSuggestion {
+	fieldBestSuggestion := make(FieldsBestSuggestion)
+	for allSuggestionsKey, _ := range allSuggestions {
+		// TODO compare scores and return lowest
+		fieldBestSuggestion[allSuggestionsKey] = allSuggestions[allSuggestionsKey][0]
+	}
+	return fieldBestSuggestion
 }

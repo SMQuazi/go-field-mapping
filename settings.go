@@ -9,7 +9,7 @@ import (
 
 type Tag struct {
 	Label      string `yaml:"label"`
-	Refinement string `yaml:"refinement,omitempty"`
+	Refinement string `yaml:"refinement"`
 }
 
 type Field struct {
