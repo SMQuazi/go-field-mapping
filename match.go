@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 
@@ -18,20 +19,34 @@ type SuggestedMatch struct {
 }
 
 type SuggestedField struct {
-	Name       string `json:"Name"`
-	Type       string `json:"Type"`
-	Label      string `json:"Label"`
-	Refinement string `json:"Refinement"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Label      string `json:"label"`
+	Refinement string `json:"refinement"`
 }
 
+type TitlesToMatchFields []string
 type FieldsAllSuggestions map[SuggestedField][]SuggestedMatch
 type FieldsBestSuggestion map[SuggestedField]SuggestedMatch
 
-func (fbs FieldsBestSuggestion) Unmarshal(bytes []byte) error {
-	//TODO create custom marshaller to return JSON
+type ReturnFieldAndMatch struct {
+	Field SuggestedField `json:"field"`
+	Match SuggestedMatch `json:"match"`
 }
 
-func suggestFieldsForTitles(headers []string) FieldsBestSuggestion {
+func (fbs FieldsBestSuggestion) MarshalJSON() ([]byte, error) {
+	var fieldsAndMatch []ReturnFieldAndMatch
+	for suggestedField, suggestedMatch := range fbs {
+		fieldsAndMatch = append(fieldsAndMatch, ReturnFieldAndMatch{
+			Field: suggestedField,
+			Match: suggestedMatch,
+		})
+	}
+
+	return json.Marshal(fieldsAndMatch)
+}
+
+func (headers TitlesToMatchFields) SuggestFieldsForTitles() FieldsAllSuggestions {
 	suggestions := make(FieldsAllSuggestions)
 	settings := getSettings()
 	fields := settings.Category.Fields
@@ -70,8 +85,7 @@ func suggestFieldsForTitles(headers []string) FieldsBestSuggestion {
 			}
 		}
 	}
-	bestSuggestions := suggestions.pickBestMatch()
-	return bestSuggestions
+	return suggestions
 }
 
 func (allSuggestions FieldsAllSuggestions) pickBestMatch() FieldsBestSuggestion {

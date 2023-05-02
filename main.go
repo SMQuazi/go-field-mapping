@@ -8,8 +8,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-type matchApiPostData []string
-
 func main() {
 	r := gin.Default()
 	r.GET("/ping", handlePing)
@@ -46,10 +44,12 @@ func handlePing(c *gin.Context) {
 }
 
 func handleMatch(c *gin.Context) {
-	var fieldHeaders matchApiPostData
-	bindError := c.Bind(&fieldHeaders)
+	var titles TitlesToMatchFields
+	bindError := c.Bind(&titles)
 	handleError(bindError, c)
 
-	suggestions := suggestFieldsForTitles(fieldHeaders)
-	c.JSON(http.StatusOK, suggestions)
+	allSuggestions := titles.SuggestFieldsForTitles()
+	bestSuggestion := allSuggestions.pickBestMatch()
+
+	c.JSON(http.StatusOK, gin.H{"data": bestSuggestion})
 }
