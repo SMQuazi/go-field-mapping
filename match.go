@@ -12,7 +12,6 @@ var MIN_SCORE_TO_MATCH = 2
 
 type SuggestedMatch struct {
 	OriginalTitle string   `json:"originalTitle"`
-	TargetField   Field    `json:"targetField"`
 	Refinement    string   `json:"refinement"`
 	Samples       []string `json:"samples"`
 	Score         int      `json:"score"`
@@ -76,7 +75,6 @@ func (headers TitlesToMatchFields) SuggestFieldsForTitles() FieldsAllSuggestions
 				if score <= MIN_SCORE_TO_MATCH {
 					suggestions[suggestedField] = append(suggestions[suggestedField], SuggestedMatch{
 						OriginalTitle: header,
-						TargetField:   field,
 						Refinement:    tag.Refinement,
 						Samples:       []string{"test1", "test2", "test 3"},
 						Score:         score,
