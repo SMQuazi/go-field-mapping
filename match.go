@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
@@ -44,6 +45,7 @@ func suggestFieldsForTitles(headers []string) FieldsBestSuggestion {
 					Refinement: tag.Refinement,
 				}
 
+				// Use refinement if it exists
 				var labelOrRefinement string
 				if len(tag.Refinement) > 0 {
 					labelOrRefinement = tag.Refinement
@@ -74,9 +76,11 @@ func suggestFieldsForTitles(headers []string) FieldsBestSuggestion {
 
 func (allSuggestions FieldsAllSuggestions) pickBestMatch() FieldsBestSuggestion {
 	fieldBestSuggestion := make(FieldsBestSuggestion)
-	for allSuggestionsKey, _ := range allSuggestions {
-		// TODO compare scores and return lowest
-		fieldBestSuggestion[allSuggestionsKey] = allSuggestions[allSuggestionsKey][0]
+	for allSuggestionsField, allSuggestionsMatches := range allSuggestions {
+		sort.Slice(allSuggestionsMatches, func(i, j int) bool {
+			return allSuggestionsMatches[i].Score < allSuggestionsMatches[j].Score
+		})
+		fieldBestSuggestion[allSuggestionsField] = allSuggestions[allSuggestionsField][0]
 	}
 	return fieldBestSuggestion
 }
