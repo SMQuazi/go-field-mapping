@@ -44,12 +44,10 @@ func handlePing(c *gin.Context) {
 }
 
 func handleMatch(c *gin.Context) {
-	var titles TitlesToMatchFields
+	var titles TitleForMatching
 	bindError := c.Bind(&titles)
 	handleError(bindError, c)
+	suggestion := MatchFields(titles)
 
-	allSuggestions := titles.SuggestFieldsForTitles()
-	bestSuggestion := allSuggestions.pickBestMatch()
-
-	c.JSON(http.StatusOK, gin.H{"data": bestSuggestion})
+	c.JSON(http.StatusOK, gin.H{"data": suggestion})
 }
