@@ -10,9 +10,8 @@ import (
 
 var MIN_SCORE_TO_MATCH = 2
 
-type SuggestedMatch struct {
+type MatchedTitle struct {
 	OriginalTitle string   `json:"originalTitle"`
-	Refinement    string   `json:"refinement"`
 	Samples       []string `json:"samples"`
 	Score         int      `json:"score"`
 }
@@ -24,16 +23,19 @@ type SuggestedField struct {
 	Refinement string `json:"refinement"`
 }
 
-type TitlesToMatchFields []string
-type FieldsAllSuggestions map[SuggestedField][]SuggestedMatch
-type FieldsBestSuggestion map[SuggestedField]SuggestedMatch
+type TitleForMatching []string
+
+// Fields/Refinement will be unique with possible matches from the title
+type FieldsToAllSuggestions map[SuggestedField][]MatchedTitle
+type FieldsToOneSuggestion map[SuggestedField]MatchedTitle
 
 type ReturnFieldAndMatch struct {
 	Field SuggestedField `json:"field"`
-	Match SuggestedMatch `json:"match"`
+	Match MatchedTitle   `json:"match"`
 }
 
-func (fbs FieldsBestSuggestion) MarshalJSON() ([]byte, error) {
+// Custom marshaller to return field and match as JSON
+func (fbs FieldsToOneSuggestion) MarshalJSON() ([]byte, error) {
 	var fieldsAndMatch []ReturnFieldAndMatch
 	for suggestedField, suggestedMatch := range fbs {
 		fieldsAndMatch = append(fieldsAndMatch, ReturnFieldAndMatch{
@@ -45,54 +47,79 @@ func (fbs FieldsBestSuggestion) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fieldsAndMatch)
 }
 
-func (headers TitlesToMatchFields) SuggestFieldsForTitles() FieldsAllSuggestions {
-	suggestions := make(FieldsAllSuggestions)
+// Matches multiple fields for a given title
+func SuggestFieldsForOneTitle(header string, ch chan FieldsToAllSuggestions) {
+	suggestions := make(FieldsToAllSuggestions)
 	settings := getSettings()
 	fields := settings.Category.Fields
 	for _, field := range fields {
 		for _, tag := range field.Tags {
-			for _, header := range headers {
-				suggestedField := SuggestedField{
-					Name:       field.Name,
-					Type:       field.Type,
-					Label:      tag.Label,
-					Refinement: tag.Refinement,
-				}
+			suggestedField := SuggestedField{
+				Name:       field.Name,
+				Type:       field.Type,
+				Label:      tag.Label,
+				Refinement: tag.Refinement,
+			}
 
-				// Use refinement if it exists
-				var labelOrRefinement string
-				if len(tag.Refinement) > 0 {
-					labelOrRefinement = tag.Refinement
-				} else {
-					labelOrRefinement = tag.Label
-				}
-				score := fuzzy.LevenshteinDistance(
-					strings.TrimSpace(strings.ToLower(header)),
-					strings.TrimSpace(strings.ToLower(labelOrRefinement)),
-				)
+			// Use refinement if it exists
+			var labelOrRefinement string
+			if len(tag.Refinement) > 0 {
+				labelOrRefinement = tag.Refinement
+			} else {
+				labelOrRefinement = tag.Label
+			}
+			score := fuzzy.LevenshteinDistance(
+				strings.TrimSpace(strings.ToLower(header)),
+				strings.TrimSpace(strings.ToLower(labelOrRefinement)),
+			)
 
-				// add if it's close enough
-				if score <= MIN_SCORE_TO_MATCH {
-					suggestions[suggestedField] = append(suggestions[suggestedField], SuggestedMatch{
-						OriginalTitle: header,
-						Refinement:    tag.Refinement,
-						Samples:       []string{"test1", "test2", "test 3"},
-						Score:         score,
-					})
-				}
+			// add if it's close enough
+			if score <= MIN_SCORE_TO_MATCH {
+				suggestions[suggestedField] = append(suggestions[suggestedField], MatchedTitle{
+					OriginalTitle: header,
+					Samples:       []string{"test1", "test2", "test 3"},
+					Score:         score,
+				})
 			}
 		}
 	}
-	return suggestions
+	ch <- suggestions
 }
 
-func (allSuggestions FieldsAllSuggestions) pickBestMatch() FieldsBestSuggestion {
-	fieldBestSuggestion := make(FieldsBestSuggestion)
-	for allSuggestionsField, allSuggestionsMatches := range allSuggestions {
-		sort.Slice(allSuggestionsMatches, func(i, j int) bool {
-			return allSuggestionsMatches[i].Score < allSuggestionsMatches[j].Score
+// Returns the lowest scored match for each title
+func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSuggestion) {
+	fieldBestSuggestion := make(FieldsToOneSuggestion)
+	for field, matches := range allSuggestions {
+		// Sort suggestions for each field by score
+		sort.Slice(matches, func(i, j int) bool {
+			return matches[i].Score < matches[j].Score
 		})
-		fieldBestSuggestion[allSuggestionsField] = allSuggestions[allSuggestionsField][0]
+		// pick the first (lowest scored) one
+		fieldBestSuggestion[field] = allSuggestions[field][0]
 	}
-	return fieldBestSuggestion
+	ch <- fieldBestSuggestion
+}
+
+// Returns the best match for all given field titles
+func MatchFields(titles TitleForMatching) []FieldsToOneSuggestion {
+	allMatchesChannel := make(chan FieldsToAllSuggestions, len(titles))
+	bestMatchChannel := make(chan FieldsToOneSuggestion, len(titles))
+	var bestMatches []FieldsToOneSuggestion
+
+	for _, title := range titles {
+		go SuggestFieldsForOneTitle(title, allMatchesChannel)
+	}
+
+	// Setup concurrency
+	numProcesses := len(titles) * 2
+	for i := 0; i < numProcesses; i++ {
+		select {
+		case allMatches := <-allMatchesChannel:
+			go GetBestMatches(allMatches, bestMatchChannel)
+		case bestMatch := <-bestMatchChannel:
+			bestMatches = append(bestMatches, bestMatch)
+		}
+	}
+
+	return bestMatches
 }
