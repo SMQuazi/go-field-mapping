@@ -95,6 +95,7 @@ func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSu
 			return matches[i].Score < matches[j].Score
 		})
 		// pick the first (lowest scored) one
+		// TODO add logic to make sure title gets only use once
 		fieldBestSuggestion[field] = allSuggestions[field][0]
 	}
 	ch <- fieldBestSuggestion
