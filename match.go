@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
+	"golang.org/x/exp/slices"
 )
 
 var MIN_SCORE_TO_MATCH = 2
@@ -19,7 +20,6 @@ type MatchedTitle struct {
 type SuggestedField struct {
 	Name       string `json:"name"`
 	Type       string `json:"type"`
-	Label      string `json:"label"`
 	Refinement string `json:"refinement"`
 }
 
@@ -37,10 +37,10 @@ type ReturnFieldAndMatch struct {
 // Custom marshaller to return field and match as JSON
 func (fbs FieldsToOneSuggestion) MarshalJSON() ([]byte, error) {
 	var fieldsAndMatch []ReturnFieldAndMatch
-	for suggestedField, suggestedMatch := range fbs {
+	for field, match := range fbs {
 		fieldsAndMatch = append(fieldsAndMatch, ReturnFieldAndMatch{
-			Field: suggestedField,
-			Match: suggestedMatch,
+			Field: field,
+			Match: match,
 		})
 	}
 
@@ -57,27 +57,20 @@ func SuggestFieldsForOneTitle(header string, ch chan FieldsToAllSuggestions) {
 			suggestedField := SuggestedField{
 				Name:       field.Name,
 				Type:       field.Type,
-				Label:      tag.Label,
 				Refinement: tag.Refinement,
 			}
 
 			// Use refinement if it exists
-			var labelOrRefinement string
-			if len(tag.Refinement) > 0 {
-				labelOrRefinement = tag.Refinement
-			} else {
-				labelOrRefinement = tag.Label
-			}
 			score := fuzzy.LevenshteinDistance(
 				strings.TrimSpace(strings.ToLower(header)),
-				strings.TrimSpace(strings.ToLower(labelOrRefinement)),
+				strings.TrimSpace(strings.ToLower(tag.Label)),
 			)
 
 			// add if it's close enough
 			if score <= MIN_SCORE_TO_MATCH {
 				suggestions[suggestedField] = append(suggestions[suggestedField], MatchedTitle{
 					OriginalTitle: header,
-					Samples:       []string{"test1", "test2", "test 3"},
+					Samples:       []string{"test 1", "test 2", "test 3"},
 					Score:         score,
 				})
 			}
@@ -89,23 +82,27 @@ func SuggestFieldsForOneTitle(header string, ch chan FieldsToAllSuggestions) {
 // Returns the lowest scored match for each title
 func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSuggestion) {
 	fieldBestSuggestion := make(FieldsToOneSuggestion)
+	var usedTitles []string
 	for field, matches := range allSuggestions {
 		// Sort suggestions for each field by score
 		sort.Slice(matches, func(i, j int) bool {
 			return matches[i].Score < matches[j].Score
 		})
-		// pick the first (lowest scored) one
-		// TODO add logic to make sure title gets only use once
-		fieldBestSuggestion[field] = allSuggestions[field][0]
+
+		// pick the first (lowest scored) one if it hasn't been used
+		if !slices.Contains(usedTitles, matches[0].OriginalTitle) {
+			fieldBestSuggestion[field] = matches[0]
+			usedTitles = append(usedTitles, matches[0].OriginalTitle)
+		}
 	}
 	ch <- fieldBestSuggestion
 }
 
 // Returns the best match for all given field titles
-func MatchFields(titles TitleForMatching) []FieldsToOneSuggestion {
+func MatchFields(titles TitleForMatching) FieldsToOneSuggestion {
 	allMatchesChannel := make(chan FieldsToAllSuggestions, len(titles))
 	bestMatchChannel := make(chan FieldsToOneSuggestion, len(titles))
-	var bestMatches []FieldsToOneSuggestion
+	var bestMatches = make(FieldsToOneSuggestion)
 
 	for _, title := range titles {
 		go SuggestFieldsForOneTitle(title, allMatchesChannel)
@@ -116,9 +113,17 @@ func MatchFields(titles TitleForMatching) []FieldsToOneSuggestion {
 	for i := 0; i < numProcesses; i++ {
 		select {
 		case allMatches := <-allMatchesChannel:
+
 			go GetBestMatches(allMatches, bestMatchChannel)
 		case bestMatch := <-bestMatchChannel:
-			bestMatches = append(bestMatches, bestMatch)
+			println(bestMatch)
+
+			// Keep unique list of lowest scores
+			for k, v := range bestMatch {
+				if _, ok := bestMatches[k]; !ok || bestMatch[k].Score < bestMatches[k].Score {
+					bestMatches[k] = v
+				}
+			}
 		}
 	}
 
