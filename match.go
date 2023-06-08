@@ -9,7 +9,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var MIN_SCORE_TO_MATCH = 2
+var MIN_SCORE_TO_MATCH = 3
+var UNMATCHED_SCORE = 100
 
 type MatchedTitle struct {
 	OriginalTitle string   `json:"originalTitle"`
@@ -23,11 +24,11 @@ type SuggestedField struct {
 	Refinement string `json:"refinement"`
 }
 
-type TitleForMatching []string
+type TitlesForMatching []string
 
 // Fields/Refinement will be unique with possible matches from the title
-type FieldsToAllSuggestions map[SuggestedField][]MatchedTitle
-type FieldsToOneSuggestion map[SuggestedField]MatchedTitle
+type FieldToAllSuggestions map[SuggestedField][]MatchedTitle
+type FieldToSuggestion map[SuggestedField]MatchedTitle
 
 type ReturnFieldAndMatch struct {
 	Field SuggestedField `json:"field"`
@@ -35,7 +36,7 @@ type ReturnFieldAndMatch struct {
 }
 
 // Custom marshaller to return field and match as JSON
-func (fbs FieldsToOneSuggestion) MarshalJSON() ([]byte, error) {
+func (fbs FieldToSuggestion) MarshalJSON() ([]byte, error) {
 	var fieldsAndMatch []ReturnFieldAndMatch
 	for field, match := range fbs {
 		fieldsAndMatch = append(fieldsAndMatch, ReturnFieldAndMatch{
@@ -48,8 +49,8 @@ func (fbs FieldsToOneSuggestion) MarshalJSON() ([]byte, error) {
 }
 
 // Matches multiple fields for a given title
-func SuggestFieldsForOneTitle(header string, ch chan FieldsToAllSuggestions) {
-	suggestions := make(FieldsToAllSuggestions)
+func SuggestFieldsForOneTitle(header string, ch chan FieldToAllSuggestions) {
+	suggestions := make(FieldToAllSuggestions)
 	settings := getSettings()
 	fields := settings.Category.Fields
 	for _, field := range fields {
@@ -80,8 +81,8 @@ func SuggestFieldsForOneTitle(header string, ch chan FieldsToAllSuggestions) {
 }
 
 // Returns the lowest scored match for each title
-func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSuggestion) {
-	fieldBestSuggestion := make(FieldsToOneSuggestion)
+func (allSuggestions FieldToAllSuggestions) GetBestMatches(ch chan FieldToSuggestion) {
+	fieldBestSuggestion := make(FieldToSuggestion)
 	var usedTitles []string
 	for field, matches := range allSuggestions {
 		// Sort suggestions for each field by score
@@ -99,10 +100,10 @@ func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSu
 }
 
 // Returns the best match for all given field titles
-func MatchFields(titles TitleForMatching) FieldsToOneSuggestion {
-	allMatchesChannel := make(chan FieldsToAllSuggestions, len(titles))
-	bestMatchChannel := make(chan FieldsToOneSuggestion, len(titles))
-	var bestMatches = make(FieldsToOneSuggestion)
+func MatchFields(titles TitlesForMatching) FieldToSuggestion {
+	allMatchesChannel := make(chan FieldToAllSuggestions, len(titles))
+	bestMatchChannel := make(chan FieldToSuggestion, len(titles))
+	var bestMatches = make(FieldToSuggestion)
 
 	for _, title := range titles {
 		go SuggestFieldsForOneTitle(title, allMatchesChannel)
@@ -113,8 +114,7 @@ func MatchFields(titles TitleForMatching) FieldsToOneSuggestion {
 	for i := 0; i < numProcesses; i++ {
 		select {
 		case allMatches := <-allMatchesChannel:
-
-			go GetBestMatches(allMatches, bestMatchChannel)
+			go allMatches.GetBestMatches(bestMatchChannel)
 		case bestMatch := <-bestMatchChannel:
 			println(bestMatch)
 
@@ -125,6 +125,30 @@ func MatchFields(titles TitleForMatching) FieldsToOneSuggestion {
 				}
 			}
 		}
+	}
+
+	// map unmapped titles to custom_types
+	customField := SuggestedField{
+		Name:       "custom_field",
+		Type:       "str",
+		Refinement: "",
+	}
+	for _, title := range titles {
+		titleFound := false
+		for _, matchedTitle := range bestMatches {
+			if matchedTitle.OriginalTitle == title {
+				titleFound = true
+				break
+			}
+		}
+		if !titleFound {
+			bestMatches[customField] = MatchedTitle{
+				OriginalTitle: title,
+				Samples:       []string{""},
+				Score:         UNMATCHED_SCORE,
+			}
+		}
+
 	}
 
 	return bestMatches
