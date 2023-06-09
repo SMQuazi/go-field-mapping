@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
@@ -128,12 +129,7 @@ func MatchFields(titles TitlesForMatching) FieldToSuggestion {
 	}
 
 	// map unmapped titles to custom_types
-	customField := SuggestedField{
-		Name:       "custom_field",
-		Type:       "str",
-		Refinement: "",
-	}
-	for _, title := range titles {
+	for i, title := range titles {
 		titleFound := false
 		for _, matchedTitle := range bestMatches {
 			if matchedTitle.OriginalTitle == title {
@@ -142,6 +138,11 @@ func MatchFields(titles TitlesForMatching) FieldToSuggestion {
 			}
 		}
 		if !titleFound {
+			customField := SuggestedField{
+				Name:       "custom_field_" + strconv.Itoa(i),
+				Type:       "str",
+				Refinement: "",
+			}
 			bestMatches[customField] = MatchedTitle{
 				OriginalTitle: title,
 				Samples:       []string{""},
