@@ -48,7 +48,7 @@ func handlePing(c *gin.Context) {
 
 // API end point that returns matches to a passed in array of titles
 func HandleMatch(c *gin.Context) {
-	var titles TitlesForMatching
+	var titles TitlesToMatch
 	bindError := c.Bind(&titles)
 	HandleError(bindError, c)
 	suggestion := MatchFields(titles)
