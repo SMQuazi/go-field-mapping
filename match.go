@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -9,7 +10,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var MIN_SCORE_TO_MATCH = 2
+var MIN_SCORE_TO_MATCH = 3
+var UNMATCHED_SCORE = 100
 
 type MatchedTitle struct {
 	OriginalTitle string   `json:"originalTitle"`
@@ -17,73 +19,77 @@ type MatchedTitle struct {
 	Score         int      `json:"score"`
 }
 
-type SuggestedField struct {
+type SettingsField struct {
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	Refinement string `json:"refinement"`
 }
 
-type TitleForMatching []string
+type TitlesToMatch []string
 
 // Fields/Refinement will be unique with possible matches from the title
-type FieldsToAllSuggestions map[SuggestedField][]MatchedTitle
-type FieldsToOneSuggestion map[SuggestedField]MatchedTitle
+type FieldToMatches map[SettingsField][]MatchedTitle
 
-type ReturnFieldAndMatch struct {
-	Field SuggestedField `json:"field"`
-	Match MatchedTitle   `json:"match"`
+type ReturnFieldAndMatches struct {
+	Field   SettingsField  `json:"field"`
+	Matches []MatchedTitle `json:"matches"`
 }
 
 // Custom marshaller to return field and match as JSON
-func (fbs FieldsToOneSuggestion) MarshalJSON() ([]byte, error) {
-	var fieldsAndMatch []ReturnFieldAndMatch
-	for field, match := range fbs {
-		fieldsAndMatch = append(fieldsAndMatch, ReturnFieldAndMatch{
-			Field: field,
-			Match: match,
+func (fieldMatchings FieldToMatches) MarshalJSON() ([]byte, error) {
+	var jsonFieldAndMatches []ReturnFieldAndMatches
+	for field, matches := range fieldMatchings {
+		jsonFieldAndMatches = append(jsonFieldAndMatches, ReturnFieldAndMatches{
+			Field:   field,
+			Matches: matches,
 		})
 	}
 
-	return json.Marshal(fieldsAndMatch)
+	return json.Marshal(jsonFieldAndMatches)
 }
 
-// Matches multiple fields for a given title
-func SuggestFieldsForOneTitle(header string, ch chan FieldsToAllSuggestions) {
-	suggestions := make(FieldsToAllSuggestions)
+// Gets all matching titles for all fields
+func FindAllMatches(titles TitlesToMatch) FieldToMatches {
+	suggestions := make(FieldToMatches)
 	settings := getSettings()
 	fields := settings.Category.Fields
 	for _, field := range fields {
 		for _, tag := range field.Tags {
-			suggestedField := SuggestedField{
-				Name:       field.Name,
-				Type:       field.Type,
-				Refinement: tag.Refinement,
-			}
+			for _, title := range titles {
 
-			// Use refinement if it exists
-			score := fuzzy.LevenshteinDistance(
-				strings.TrimSpace(strings.ToLower(header)),
-				strings.TrimSpace(strings.ToLower(tag.Label)),
-			)
+				// Match with label
+				score := fuzzy.LevenshteinDistance(
+					strings.TrimSpace(strings.ToLower(title)),
+					strings.TrimSpace(strings.ToLower(tag.Label)),
+				)
 
-			// add if it's close enough
-			if score <= MIN_SCORE_TO_MATCH {
-				suggestions[suggestedField] = append(suggestions[suggestedField], MatchedTitle{
-					OriginalTitle: header,
-					Samples:       []string{"test 1", "test 2", "test 3"},
-					Score:         score,
-				})
+				// add if it's close enough
+				if score <= MIN_SCORE_TO_MATCH {
+					suggestedField := SettingsField{
+						Name:       field.Name,
+						Type:       field.Type,
+						Refinement: tag.Refinement,
+					}
+
+					suggestions[suggestedField] = append(suggestions[suggestedField], MatchedTitle{
+						OriginalTitle: title,
+						Samples:       []string{"test 1", "test 2", "test 3"},
+						Score:         score,
+					})
+				}
 			}
 		}
 	}
-	ch <- suggestions
+	fmt.Printf("%+v\n", suggestions)
+
+	return suggestions
 }
 
 // Returns the lowest scored match for each title
-func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSuggestion) {
-	fieldBestSuggestion := make(FieldsToOneSuggestion)
+func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
+	fieldBestMatched := make(FieldToMatches)
 	var usedTitles []string
-	for field, matches := range allSuggestions {
+	for field, matches := range fieldMatches {
 		// Sort suggestions for each field by score
 		sort.Slice(matches, func(i, j int) bool {
 			return matches[i].Score < matches[j].Score
@@ -91,39 +97,39 @@ func GetBestMatches(allSuggestions FieldsToAllSuggestions, ch chan FieldsToOneSu
 
 		// pick the first (lowest scored) one if it hasn't been used
 		if !slices.Contains(usedTitles, matches[0].OriginalTitle) {
-			fieldBestSuggestion[field] = matches[0]
+			fieldBestMatched[field] = []MatchedTitle{matches[0]}
 			usedTitles = append(usedTitles, matches[0].OriginalTitle)
 		}
 	}
-	ch <- fieldBestSuggestion
+	ch <- fieldBestMatched
 }
 
 // Returns the best match for all given field titles
-func MatchFields(titles TitleForMatching) FieldsToOneSuggestion {
-	allMatchesChannel := make(chan FieldsToAllSuggestions, len(titles))
-	bestMatchChannel := make(chan FieldsToOneSuggestion, len(titles))
-	var bestMatches = make(FieldsToOneSuggestion)
+func MatchFields(titles TitlesToMatch, useConcurrency bool) FieldToMatches {
+	bestMatches := make(FieldToMatches)
+	allMatches := FindAllMatches(titles)
+	bestMatchCh := make(chan FieldToMatches)
+	numProcesses := 1
 
-	for _, title := range titles {
-		go SuggestFieldsForOneTitle(title, allMatchesChannel)
+	if !useConcurrency {
+		go allMatches.GetBestMatch(bestMatchCh)
+	}
+
+	if useConcurrency {
+		for field, matches := range allMatches {
+			newMap := make(FieldToMatches)
+			newMap[field] = matches
+			go newMap.GetBestMatch(bestMatchCh)
+		}
+		numProcesses = len(allMatches) * 1
 	}
 
 	// Setup concurrency
-	numProcesses := len(titles) * 2
 	for i := 0; i < numProcesses; i++ {
-		select {
-		case allMatches := <-allMatchesChannel:
-
-			go GetBestMatches(allMatches, bestMatchChannel)
-		case bestMatch := <-bestMatchChannel:
-			println(bestMatch)
-
-			// Keep unique list of lowest scores
-			for k, v := range bestMatch {
-				if _, ok := bestMatches[k]; !ok || bestMatch[k].Score < bestMatches[k].Score {
-					bestMatches[k] = v
-				}
-			}
+		bestMatch := <-bestMatchCh
+		println(bestMatch)
+		for k, v := range bestMatch {
+			bestMatches[k] = v
 		}
 	}
 

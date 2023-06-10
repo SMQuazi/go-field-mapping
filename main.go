@@ -1,3 +1,4 @@
+// Service to allow matching of titles to fields customized in a settings file
 package main
 
 import (
@@ -11,11 +12,12 @@ import (
 func main() {
 	r := gin.Default()
 	r.GET("/ping", handlePing)
-	r.POST("/match", handleMatch)
+	r.POST("/match", HandleMatch)
 	r.Run()
 }
 
-func getTitles(excelPath string) ([]string, error) {
+// Gets titles from Excel file
+func GetTitles(excelPath string) ([]string, error) {
 	xlData, err := excelize.OpenFile(excelPath)
 	if err != nil {
 		return nil, err
@@ -28,7 +30,7 @@ func getTitles(excelPath string) ([]string, error) {
 	return titles, nil
 }
 
-func handleError(err error, c *gin.Context) {
+func HandleError(err error, c *gin.Context) {
 	if err != nil {
 		fmt.Println(err)
 		c.JSON(http.StatusInternalServerError,
@@ -36,6 +38,7 @@ func handleError(err error, c *gin.Context) {
 	}
 }
 
+// Health check API
 func handlePing(c *gin.Context) {
 	c.JSON(http.StatusOK,
 		gin.H{
@@ -43,11 +46,12 @@ func handlePing(c *gin.Context) {
 		})
 }
 
-func handleMatch(c *gin.Context) {
-	var titles TitleForMatching
+// API end point that returns matches to a passed in array of titles
+func HandleMatch(c *gin.Context) {
+	var titles TitlesToMatch
 	bindError := c.Bind(&titles)
-	handleError(bindError, c)
-	suggestion := MatchFields(titles)
+	HandleError(bindError, c)
+	suggestion := MatchFields(titles, true)
 
 	c.JSON(http.StatusOK, gin.H{"data": suggestion})
 }
