@@ -105,12 +105,11 @@ func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
 }
 
 // Returns the best match for all given field titles
-func MatchFields(titles TitlesToMatch) FieldToMatches {
+func MatchFields(titles TitlesToMatch, useConcurrency bool) FieldToMatches {
 	bestMatches := make(FieldToMatches)
 	allMatches := FindAllMatches(titles)
 	bestMatchCh := make(chan FieldToMatches)
 	numProcesses := 1
-	useConcurrency := true
 
 	if !useConcurrency {
 		go allMatches.GetBestMatch(bestMatchCh)

@@ -51,7 +51,7 @@ func HandleMatch(c *gin.Context) {
 	var titles TitlesToMatch
 	bindError := c.Bind(&titles)
 	HandleError(bindError, c)
-	suggestion := MatchFields(titles)
+	suggestion := MatchFields(titles, true)
 
 	c.JSON(http.StatusOK, gin.H{"data": suggestion})
 }
