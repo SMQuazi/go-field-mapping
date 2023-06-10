@@ -87,7 +87,7 @@ func FindAllMatches(titles TitlesToMatch) FieldToMatches {
 
 // Returns the lowest scored match for each title
 func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
-	fieldToBestMatch := make(FieldToMatches)
+	fieldBestMatched := make(FieldToMatches)
 	var usedTitles []string
 	for field, matches := range fieldMatches {
 		// Sort suggestions for each field by score
@@ -97,33 +97,40 @@ func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
 
 		// pick the first (lowest scored) one if it hasn't been used
 		if !slices.Contains(usedTitles, matches[0].OriginalTitle) {
-			fieldToBestMatch[field] = []MatchedTitle{matches[0]}
+			fieldBestMatched[field] = []MatchedTitle{matches[0]}
 			usedTitles = append(usedTitles, matches[0].OriginalTitle)
 		}
 	}
-	ch <- fieldToBestMatch
+	ch <- fieldBestMatched
 }
 
 // Returns the best match for all given field titles
 func MatchFields(titles TitlesToMatch) FieldToMatches {
+	bestMatches := make(FieldToMatches)
 	allMatches := FindAllMatches(titles)
 	bestMatchCh := make(chan FieldToMatches)
-	for field, matches := range allMatches {
-		newMap := make(FieldToMatches)
-		newMap[field] = matches
-		go newMap.GetBestMatch(bestMatchCh)
+	numProcesses := 1
+	useConcurrency := true
+
+	if !useConcurrency {
+		go allMatches.GetBestMatch(bestMatchCh)
+	}
+
+	if useConcurrency {
+		for field, matches := range allMatches {
+			newMap := make(FieldToMatches)
+			newMap[field] = matches
+			go newMap.GetBestMatch(bestMatchCh)
+		}
+		numProcesses = len(allMatches) * 1
 	}
 
 	// Setup concurrency
-	numProcesses := len(allMatches) * 1
-	bestMatches := make(FieldToMatches)
 	for i := 0; i < numProcesses; i++ {
-		select {
-		case bestMatch := <-bestMatchCh:
-			println(bestMatch)
-			for k, v := range bestMatch {
-				bestMatches[k] = v
-			}
+		bestMatch := <-bestMatchCh
+		println(bestMatch)
+		for k, v := range bestMatch {
+			bestMatches[k] = v
 		}
 	}
 
