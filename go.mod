@@ -1,4 +1,4 @@
-module fieldMapper
+module gitlab.com/likwidsage/field-mapper
 
 go 1.20
 
