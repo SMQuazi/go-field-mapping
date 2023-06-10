@@ -26,8 +26,8 @@ type Settings struct {
 	Category Category `yaml:"category"`
 }
 
-func getSettings() Settings {
-	data, err := os.ReadFile("settings.yml")
+func getSettings(path string) Settings {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}

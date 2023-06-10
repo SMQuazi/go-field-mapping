@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	fieldmapper "fieldMapperApi/pkg/field-mapper"
+
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
 )
@@ -48,10 +50,10 @@ func handlePing(c *gin.Context) {
 
 // API end point that returns matches to a passed in array of titles
 func HandleMatch(c *gin.Context) {
-	var titles TitlesToMatch
+	var titles fieldmapper.TitlesToMatch
 	bindError := c.Bind(&titles)
 	HandleError(bindError, c)
-	suggestion := MatchFields(titles, true)
+	suggestion := fieldmapper.MatchFields(titles, true, "../configs/settings.yml")
 
 	c.JSON(http.StatusOK, gin.H{"data": suggestion})
 }

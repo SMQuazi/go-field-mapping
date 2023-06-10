@@ -1,5 +1,8 @@
 {
     "yaml.schemas": {
         "https://json.schemastore.org/yamllint.json": "file:///home/likwidsage/sources/field-mapper/settings.yaml"
-    }
+    },
+    "cSpell.words": [
+        "fieldmapper"
+    ]
 }

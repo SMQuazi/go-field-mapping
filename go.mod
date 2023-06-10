@@ -1,4 +1,4 @@
-module gitlab.com/likwidsage/field-mapper
+module fieldMapperApi
 
 go 1.20
 
@@ -6,7 +6,6 @@ require (
 	github.com/gin-gonic/gin v1.9.0
 	github.com/lithammer/fuzzysearch v1.1.5
 	github.com/xuri/excelize/v2 v2.7.1
-	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -34,6 +33,7 @@ require (
 	github.com/xuri/nfp v0.0.0-20220409054826-5e722a1d9e22 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.8.0 // indirect
+	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect

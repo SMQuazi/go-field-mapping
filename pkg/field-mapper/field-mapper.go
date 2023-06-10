@@ -49,9 +49,9 @@ func (fieldMatchings FieldToMatches) MarshalJSON() ([]byte, error) {
 }
 
 // Gets all matching titles for all fields
-func FindAllMatches(titles TitlesToMatch) FieldToMatches {
+func FindAllMatches(titles TitlesToMatch, pathToSettings string) FieldToMatches {
 	suggestions := make(FieldToMatches)
-	settings := getSettings()
+	settings := getSettings(pathToSettings)
 	fields := settings.Category.Fields
 	for _, field := range fields {
 		for _, tag := range field.Tags {
@@ -105,9 +105,9 @@ func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
 }
 
 // Returns the best match for all given field titles
-func MatchFields(titles TitlesToMatch, useConcurrency bool) FieldToMatches {
+func MatchFields(titles TitlesToMatch, useConcurrency bool, pathToSettings string) FieldToMatches {
 	bestMatches := make(FieldToMatches)
-	allMatches := FindAllMatches(titles)
+	allMatches := FindAllMatches(titles, pathToSettings)
 	bestMatchCh := make(chan FieldToMatches)
 	numProcesses := 1
 
