@@ -13,33 +13,33 @@ import (
 var MIN_SCORE_TO_MATCH = 3
 var UNMATCHED_SCORE = 100
 
-type MatchedTitle struct {
+type MappedTitle struct {
 	OriginalTitle string   `json:"originalTitle"`
 	Samples       []string `json:"samples"`
 	Score         int      `json:"score"`
 }
 
-type SettingsField struct {
+type MappedField struct {
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	Refinement string `json:"refinement"`
 }
 
-type TitlesToMatch []string
+type Titles []string
 
 // Fields/Refinement will be unique with possible matches from the title
-type FieldToMatches map[SettingsField][]MatchedTitle
+type MappedFieldsAndTitles map[MappedField][]MappedTitle
 
-type ReturnFieldAndMatches struct {
-	Field   SettingsField  `json:"field"`
-	Matches []MatchedTitle `json:"matches"`
+type JsonMappedFieldsAndTitles struct {
+	Field   MappedField   `json:"field"`
+	Matches []MappedTitle `json:"matches"`
 }
 
 // Custom marshaller to return field and match as JSON
-func (fieldMatchings FieldToMatches) MarshalJSON() ([]byte, error) {
-	var jsonFieldAndMatches []ReturnFieldAndMatches
+func (fieldMatchings MappedFieldsAndTitles) MarshalJSON() ([]byte, error) {
+	var jsonFieldAndMatches []JsonMappedFieldsAndTitles
 	for field, matches := range fieldMatchings {
-		jsonFieldAndMatches = append(jsonFieldAndMatches, ReturnFieldAndMatches{
+		jsonFieldAndMatches = append(jsonFieldAndMatches, JsonMappedFieldsAndTitles{
 			Field:   field,
 			Matches: matches,
 		})
@@ -49,8 +49,8 @@ func (fieldMatchings FieldToMatches) MarshalJSON() ([]byte, error) {
 }
 
 // Gets all matching titles for all fields
-func FindAllMatches(titles TitlesToMatch, pathToSettings string) FieldToMatches {
-	suggestions := make(FieldToMatches)
+func FindAllMatches(titles Titles, pathToSettings string) MappedFieldsAndTitles {
+	suggestions := make(MappedFieldsAndTitles)
 	settings := getSettings(pathToSettings)
 	fields := settings.Category.Fields
 	for _, field := range fields {
@@ -65,13 +65,13 @@ func FindAllMatches(titles TitlesToMatch, pathToSettings string) FieldToMatches 
 
 				// add if it's close enough
 				if score <= MIN_SCORE_TO_MATCH {
-					suggestedField := SettingsField{
+					suggestedField := MappedField{
 						Name:       field.Name,
 						Type:       field.Type,
 						Refinement: tag.Refinement,
 					}
 
-					suggestions[suggestedField] = append(suggestions[suggestedField], MatchedTitle{
+					suggestions[suggestedField] = append(suggestions[suggestedField], MappedTitle{
 						OriginalTitle: title,
 						Samples:       []string{"test 1", "test 2", "test 3"},
 						Score:         score,
@@ -86,8 +86,8 @@ func FindAllMatches(titles TitlesToMatch, pathToSettings string) FieldToMatches 
 }
 
 // Returns the lowest scored match for each title
-func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
-	fieldBestMatched := make(FieldToMatches)
+func (fieldMatches MappedFieldsAndTitles) GetBestMatch(ch chan MappedFieldsAndTitles) {
+	fieldBestMatched := make(MappedFieldsAndTitles)
 	var usedTitles []string
 	for field, matches := range fieldMatches {
 		// Sort suggestions for each field by score
@@ -97,7 +97,7 @@ func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
 
 		// pick the first (lowest scored) one if it hasn't been used
 		if !slices.Contains(usedTitles, matches[0].OriginalTitle) {
-			fieldBestMatched[field] = []MatchedTitle{matches[0]}
+			fieldBestMatched[field] = []MappedTitle{matches[0]}
 			usedTitles = append(usedTitles, matches[0].OriginalTitle)
 		}
 	}
@@ -105,10 +105,10 @@ func (fieldMatches FieldToMatches) GetBestMatch(ch chan FieldToMatches) {
 }
 
 // Returns the best match for all given field titles
-func MatchFields(titles TitlesToMatch, useConcurrency bool, pathToSettings string) FieldToMatches {
-	bestMatches := make(FieldToMatches)
+func MatchFields(titles Titles, useConcurrency bool, pathToSettings string) MappedFieldsAndTitles {
+	bestMatches := make(MappedFieldsAndTitles)
 	allMatches := FindAllMatches(titles, pathToSettings)
-	bestMatchCh := make(chan FieldToMatches)
+	bestMatchCh := make(chan MappedFieldsAndTitles)
 	numProcesses := 1
 
 	if !useConcurrency {
@@ -117,7 +117,7 @@ func MatchFields(titles TitlesToMatch, useConcurrency bool, pathToSettings strin
 
 	if useConcurrency {
 		for field, matches := range allMatches {
-			newMap := make(FieldToMatches)
+			newMap := make(MappedFieldsAndTitles)
 			newMap[field] = matches
 			go newMap.GetBestMatch(bestMatchCh)
 		}
@@ -130,6 +130,30 @@ func MatchFields(titles TitlesToMatch, useConcurrency bool, pathToSettings strin
 		println(bestMatch)
 		for k, v := range bestMatch {
 			bestMatches[k] = v
+		}
+	}
+
+	// return non matches as custom
+	for _, title := range titles {
+		titleFound := false
+		for _, matches := range bestMatches {
+			if matches[0].OriginalTitle == title {
+				titleFound = true
+				break
+			}
+		}
+
+		if !titleFound {
+			customField := MappedField{
+				Name:       "custom_field",
+				Type:       "str",
+				Refinement: "",
+			}
+			bestMatches[customField] = append(bestMatches[customField], MappedTitle{
+				OriginalTitle: title,
+				Samples:       []string{"test 1", "test 2", "test 3"},
+				Score:         UNMATCHED_SCORE,
+			})
 		}
 	}
 

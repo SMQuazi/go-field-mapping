@@ -50,7 +50,7 @@ func handlePing(c *gin.Context) {
 
 // API end point that returns matches to a passed in array of titles
 func HandleMatch(c *gin.Context) {
-	var titles fieldmapper.TitlesToMatch
+	var titles fieldmapper.Titles
 	bindError := c.Bind(&titles)
 	HandleError(bindError, c)
 	suggestion := fieldmapper.MatchFields(titles, true, "../configs/settings.yml")

@@ -12,14 +12,14 @@ type Tag struct {
 	Refinement string `yaml:"refinement"`
 }
 
-type Field struct {
+type SettingField struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
-	Tags []Tag  `yaml:"tags"`
+	Tags []Tag  `yaml:"tags,omitempty"`
 }
 
 type Category struct {
-	Fields []Field `yaml:"fields"`
+	Fields []SettingField `yaml:"fields"`
 }
 
 type Settings struct {
